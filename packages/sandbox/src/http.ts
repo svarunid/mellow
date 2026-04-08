@@ -1,5 +1,5 @@
-import { Effect, Schema } from "effect";
 import type { HttpClient, HttpClientRequest } from "@effect/platform";
+import { Effect, Schema } from "effect";
 
 export const makeHttpExecutor = (httpClient: HttpClient.HttpClient) => ({
 	json: <A, I>(req: HttpClientRequest.HttpClientRequest, schema: Schema.Schema<A, I>) =>

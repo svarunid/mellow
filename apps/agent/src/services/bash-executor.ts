@@ -1,5 +1,5 @@
-import { Data, Effect } from "effect";
 import { Sandbox, type SandboxError } from "@mellow/sandbox";
+import { Data, Effect } from "effect";
 import type { ToolError } from "./tool-registry";
 
 const ALLOWED_COMMANDS: ReadonlySet<string> = new Set([

@@ -1,10 +1,10 @@
-import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
-import { workspaceRoutes } from "./routes/workspace";
+import { Elysia } from "elysia";
+import { integrationRoutes } from "./routes/integration";
 import { projectRoutes } from "./routes/project";
 import { projectMemberRoutes } from "./routes/project-member";
 import { webhookRoutes } from "./routes/webhooks";
-import { integrationRoutes } from "./routes/integration";
+import { workspaceRoutes } from "./routes/workspace";
 
 const port = Number(process.env.PORT) || 3000;
 

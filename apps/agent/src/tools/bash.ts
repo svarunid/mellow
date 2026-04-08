@@ -1,6 +1,6 @@
 import { Effect, Schema } from "effect";
-import { ExecutableTool } from "../services/tool-registry";
 import BashExecutor from "../services/bash-executor";
+import { ExecutableTool } from "../services/tool-registry";
 
 const BashSchema = Schema.Struct({
 	command: Schema.String.annotations({

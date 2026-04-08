@@ -1,11 +1,10 @@
-import { Effect, Schema, Stream } from "effect";
 import {
 	FetchHttpClient,
 	HttpClient,
 	HttpClientRequest,
 	HttpClientResponse,
 } from "@effect/platform";
-import { makeHttpExecutor } from "./http";
+import { Effect, Schema, Stream } from "effect";
 import {
 	CodeContextError,
 	CommandStreamError,
@@ -18,6 +17,7 @@ import {
 	SandboxNetworkError,
 	SessionError,
 } from "./errors";
+import { makeHttpExecutor } from "./http";
 import {
 	CodeContext,
 	CommandStatusResponse,
@@ -25,7 +25,7 @@ import {
 	SessionResponse,
 	SystemMetrics,
 } from "./schemas";
-import { type ExecResult, type SSEFrame, collectExecResult, parseExecdSSE } from "./sse";
+import { collectExecResult, type ExecResult, parseExecdSSE, type SSEFrame } from "./sse";
 
 export type { ExecResult, SSEFrame } from "./sse";
 

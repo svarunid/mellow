@@ -1,7 +1,7 @@
 import { Effect, Layer } from "effect";
 import ToolRegistry from "../services/tool-registry";
-import { readFile, writeFile, editFile, listDirectory, glob, grep } from "./filesystem";
 import { bash } from "./bash";
+import { editFile, glob, grep, listDirectory, readFile, writeFile } from "./filesystem";
 
 export const AllToolsLive = Layer.effectDiscard(
 	Effect.gen(function* () {

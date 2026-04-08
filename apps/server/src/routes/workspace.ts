@@ -1,7 +1,7 @@
-import { Elysia, t } from "elysia";
-import { eq } from "drizzle-orm";
 import { db } from "@mellow/database/client";
 import { workspace } from "@mellow/database/schema";
+import { eq } from "drizzle-orm";
+import { Elysia, t } from "elysia";
 import { requireAuth } from "../session";
 
 export const workspaceRoutes = new Elysia({ prefix: "/api/workspaces" })

@@ -1,7 +1,6 @@
-import { Data, Effect, JSONSchema, Ref, Schema } from "effect";
-import type { ToolResultBlock } from "@mellow/ai/types";
+import type { FunctionTool, ToolResultBlock } from "@mellow/ai/types";
 import type { Sandbox } from "@mellow/sandbox";
-import type { FunctionTool } from "@mellow/ai/types";
+import { Data, Effect, JSONSchema, Ref, Schema } from "effect";
 
 export interface ToolError {
 	readonly transform: () => string;

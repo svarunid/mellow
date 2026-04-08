@@ -1,8 +1,8 @@
-import { Elysia } from "elysia";
-import { eq } from "drizzle-orm";
 import { db } from "@mellow/database/client";
 import { workspace } from "@mellow/database/schema";
-import type { AuthUser, AuthSession } from "./types";
+import { eq } from "drizzle-orm";
+import { Elysia } from "elysia";
+import type { AuthSession, AuthUser } from "./types";
 
 export const requireAuth = new Elysia({ name: "requireAuth" })
 	.derive({ as: "scoped" }, ({ request }) => {

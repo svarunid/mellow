@@ -1,14 +1,14 @@
 export type {
 	IntegrationSource,
-	WebhookAction,
 	NormalizedTask,
+	WebhookAction,
 	WebhookEvent,
 } from "./types.ts";
 
+import { normalizeJiraWebhook, verifyJiraSignature } from "./jira/index.ts";
+import { normalizeLinearWebhook, verifyLinearSignature } from "./linear/index.ts";
+import { normalizePlaneWebhook, verifyPlaneSignature } from "./plane/index.ts";
 import type { IntegrationSource, WebhookEvent } from "./types.ts";
-import { verifyLinearSignature, normalizeLinearWebhook } from "./linear/index.ts";
-import { verifyPlaneSignature, normalizePlaneWebhook } from "./plane/index.ts";
-import { verifyJiraSignature, normalizeJiraWebhook } from "./jira/index.ts";
 
 export function verifyWebhookSignature(
 	source: IntegrationSource,

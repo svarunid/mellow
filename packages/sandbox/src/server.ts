@@ -1,6 +1,5 @@
-import { Config, Effect, Redacted } from "effect";
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "@effect/platform";
-import { makeHttpExecutor } from "./http";
+import { Config, Effect, Redacted } from "effect";
 import {
 	DiagnosticsError,
 	EndpointResolveError,
@@ -10,6 +9,7 @@ import {
 	SandboxProvisionError,
 	SandboxStateConflictError,
 } from "./errors";
+import { makeHttpExecutor } from "./http";
 import { EndpointInfo, RenewResponse, SandboxInfo, SandboxList } from "./schemas";
 
 export interface CreateSandboxParams {

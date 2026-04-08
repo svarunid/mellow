@@ -1,6 +1,6 @@
 import { Duration, Effect, Layer } from "effect";
-import { LLM } from "../services/llm/service";
 import type { LLMError } from "../errors";
+import { LLM } from "../services/llm/service";
 
 export interface RetryOptions {
 	readonly maxRetries?: number | undefined;
