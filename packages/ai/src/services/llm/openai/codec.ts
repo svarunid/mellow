@@ -1,55 +1,38 @@
 import { Either, Schema } from "effect";
-import { OpenAIResponsesStreamEvent, type OpenAIResponsesUsage } from "./types";
-import type {
-	OpenAIAnnotation,
-	OpenAIResponsesInputContentPart,
-	OpenAIResponsesInputItem,
-	OpenAIResponsesOutputItem as OpenAIOutputItemT,
-	OpenAIResponsesReasoningConfig,
-	OpenAIResponsesRequest,
-	OpenAIResponsesResponse,
-	OpenAIResponsesTextFormat,
-	OpenAIResponsesTool as OpenAIToolT,
-	OpenAIResponsesToolChoice as OpenAIToolChoiceT,
-} from "./types";
-import { TextContent } from "../../../types/content";
-import { CompactionBlock, ReasoningBlock, RedactedReasoningBlock } from "../../../types/reasoning";
-import {
-	ServerToolCallBlock,
-	ServerToolResultBlock,
-	ShellCallBlock,
-	ToolCallBlock,
-} from "../../../types/tool";
-import type { Usage } from "../../../types/metadata";
-import type { AssistantContentBlock, UserContentBlock } from "../../../types/message";
-import type { Message } from "../../../types/message";
-import type { StopReason } from "../../../types/metadata";
-import type { StreamEvent } from "../../../types/stream";
-import type { ContextManagement, OutputFormat, ThinkingConfig } from "../../../types/config";
-import type { Tool, ToolChoice } from "../../../types/tool";
 import {
 	AuthenticationError,
 	BillingError,
 	ContentPolicyError,
 	ContextLengthError,
 	InputValidationError,
+	type LLMError,
 	ModelNotFoundError,
 	ProviderError,
 	RateLimitError,
-	type LLMError,
 } from "../../../errors";
-
-const WideContentBlock = Schema.Union(
-	TextContent,
-	ToolCallBlock,
-	ServerToolCallBlock,
-	ReasoningBlock,
-	RedactedReasoningBlock,
-	CompactionBlock,
-	ServerToolResultBlock,
-	ShellCallBlock,
-);
-type WideContentBlockT = typeof WideContentBlock.Type;
+import type { ContextManagement, OutputFormat, ThinkingConfig } from "../../../types/config";
+import type {
+	AssistantContentBlock,
+	Message,
+	UserContentBlock,
+	WideContentBlock,
+} from "../../../types/message";
+import type { StopReason, TokenUsage } from "../../../types/metadata";
+import type { StreamEvent } from "../../../types/stream";
+import type { Tool, ToolChoice } from "../../../types/tool";
+import type {
+	OpenAIAnnotation,
+	OpenAIResponsesOutputItem as OpenAIOutputItemT,
+	OpenAIResponsesInputContentPart,
+	OpenAIResponsesInputItem,
+	OpenAIResponsesReasoningConfig,
+	OpenAIResponsesRequest,
+	OpenAIResponsesResponse,
+	OpenAIResponsesTextFormat,
+	OpenAIResponsesToolChoice as OpenAIToolChoiceT,
+	OpenAIResponsesTool as OpenAIToolT,
+} from "./types";
+import { OpenAIResponsesStreamEvent, type OpenAIResponsesUsage } from "./types";
 
 const parseJsonSafe = (s: string): Record<string, unknown> => {
 	try {
@@ -59,7 +42,7 @@ const parseJsonSafe = (s: string): Record<string, unknown> => {
 	}
 };
 
-export const decodeOutputItem = (item: OpenAIOutputItemT): WideContentBlockT[] => {
+export const decodeOutputItem = (item: OpenAIOutputItemT): WideContentBlock[] => {
 	switch (item.type) {
 		case "message":
 			return item.content.map((part) => {
@@ -257,14 +240,12 @@ export const decodeOutputItem = (item: OpenAIOutputItemT): WideContentBlockT[] =
 	}
 };
 
-type UsageT = typeof Usage.Type;
-
-export const decodeUsage = (u: typeof OpenAIResponsesUsage.Type): UsageT => ({
-	inputTokens: u.input_tokens,
-	outputTokens: u.output_tokens,
-	totalTokens: u.total_tokens,
-	cacheReadTokens: u.input_tokens_details?.cached_tokens,
-	reasoningTokens: u.output_tokens_details?.reasoning_tokens,
+export const decodeUsage = (u: typeof OpenAIResponsesUsage.Type): TokenUsage => ({
+	input: u.input_tokens,
+	output: u.output_tokens,
+	total: u.total_tokens,
+	cacheRead: u.input_tokens_details?.cached_tokens,
+	reasoning: u.output_tokens_details?.reasoning_tokens,
 });
 
 export const decodeStopReason = (

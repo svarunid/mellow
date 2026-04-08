@@ -1,10 +1,23 @@
 import { Either, Schema } from "effect";
 import {
-	type GeminiContent,
-	type GeminiInteractionStatus,
-	GeminiStreamEvent,
-	type GeminiUsage,
-} from "./types";
+	AuthenticationError,
+	ContextLengthError,
+	InputValidationError,
+	type LLMError,
+	ModelNotFoundError,
+	ProviderError,
+	RateLimitError,
+} from "../../../errors";
+import type { OutputFormat, ThinkingConfig } from "../../../types/config";
+import type {
+	AssistantContentBlock,
+	Message,
+	UserContentBlock,
+	WideContentBlock,
+} from "../../../types/message";
+import type { StopReason, TokenUsage } from "../../../types/metadata";
+import type { StreamEvent } from "../../../types/stream";
+import type { Tool, ToolChoice } from "../../../types/tool";
 import type {
 	GeminiAnnotation,
 	GeminiGenerationConfig,
@@ -13,45 +26,16 @@ import type {
 	GeminiTool as GeminiToolT,
 	GeminiTurn,
 } from "./types";
-import { TextContent } from "../../../types/content";
-import { CompactionBlock, ReasoningBlock, RedactedReasoningBlock } from "../../../types/reasoning";
 import {
-	ServerToolCallBlock,
-	ServerToolResultBlock,
-	ShellCallBlock,
-	ToolCallBlock,
-} from "../../../types/tool";
-import type { StopReason, Usage } from "../../../types/metadata";
-import type { AssistantContentBlock, UserContentBlock } from "../../../types/message";
-import type { Message } from "../../../types/message";
-import type { StreamEvent } from "../../../types/stream";
-import type { OutputFormat, ThinkingConfig } from "../../../types/config";
-import type { Tool, ToolChoice } from "../../../types/tool";
-import {
-	AuthenticationError,
-	ContextLengthError,
-	InputValidationError,
-	ModelNotFoundError,
-	ProviderError,
-	RateLimitError,
-	type LLMError,
-} from "../../../errors";
+	type GeminiContent,
+	type GeminiInteractionStatus,
+	GeminiStreamEvent,
+	type GeminiUsage,
+} from "./types";
 
 type GeminiContentT = GeminiContent;
 
-const WideContentBlock = Schema.Union(
-	TextContent,
-	ToolCallBlock,
-	ServerToolCallBlock,
-	ReasoningBlock,
-	RedactedReasoningBlock,
-	CompactionBlock,
-	ServerToolResultBlock,
-	ShellCallBlock,
-);
-type WideContentBlockT = typeof WideContentBlock.Type;
-
-export const decodeContentBlock = (block: GeminiContentT): WideContentBlockT | null => {
+export const decodeContentBlock = (block: GeminiContentT): WideContentBlock | null => {
 	switch (block.type) {
 		case "text":
 			return {
@@ -172,14 +156,12 @@ export const decodeContentBlock = (block: GeminiContentT): WideContentBlockT | n
 	}
 };
 
-type UsageT = typeof Usage.Type;
-
-export const decodeUsage = (u: typeof GeminiUsage.Type): UsageT => ({
-	inputTokens: u.total_input_tokens ?? 0,
-	outputTokens: u.total_output_tokens ?? 0,
-	cacheReadTokens: u.total_cached_tokens,
-	reasoningTokens: u.total_thought_tokens,
-	totalTokens: u.total_tokens,
+export const decodeUsage = (u: typeof GeminiUsage.Type): TokenUsage => ({
+	input: u.total_input_tokens ?? 0,
+	output: u.total_output_tokens ?? 0,
+	cacheRead: u.total_cached_tokens,
+	reasoning: u.total_thought_tokens,
+	total: u.total_tokens,
 });
 
 export const decodeStopReason = (
@@ -525,7 +507,7 @@ const ASSISTANT_BLOCK_TYPES = new Set([
 
 export const createStreamDecoder = () => {
 	const fnCalls = new Map<number, { id?: string; name?: string; args?: Record<string, unknown> }>();
-	let lastUsage: UsageT | undefined;
+	let lastUsage: TokenUsage | undefined;
 
 	return (rawEvent: unknown): StreamEvent[] => {
 		const event = Schema.decodeUnknownSync(GeminiStreamEvent)(rawEvent);
@@ -662,22 +644,8 @@ export const createStreamDecoder = () => {
 				];
 			}
 
-			case "interaction.status_update": {
-				const result = decodeStopReason(event.status);
-				if (Either.isLeft(result)) {
-					return [
-						{
-							type: "response.delta" as const,
-						},
-					];
-				}
-				return [
-					{
-						type: "response.delta" as const,
-						stopReason: result.right,
-					},
-				];
-			}
+			case "interaction.status_update":
+				return [];
 
 			case "error":
 				return [
@@ -691,7 +659,5 @@ export const createStreamDecoder = () => {
 					},
 				];
 		}
-
-		return [];
 	};
 };

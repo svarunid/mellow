@@ -1,62 +1,44 @@
 import { Either, Schema } from "effect";
 import {
-	type AnthropicMessagesUsage,
-	AnthropicResponseContentBlock,
-	type AnthropicStopReason,
-	AnthropicStreamEvent,
-} from "./types";
+	AuthenticationError,
+	BillingError,
+	ContentPolicyError,
+	ContextLengthError,
+	InputValidationError,
+	type LLMError,
+	ModelNotFoundError,
+	ProviderError,
+	RateLimitError,
+} from "../../../errors";
+import type { ContextManagement, OutputFormat, ThinkingConfig } from "../../../types/config";
+import type { DocumentAnnotation, UrlAnnotation } from "../../../types/content";
+import type { AssistantContentBlock, Message, UserContentBlock } from "../../../types/message";
+import { WideContentBlock } from "../../../types/message";
+import type { StopReason, TokenUsage } from "../../../types/metadata";
+import type { StreamEvent } from "../../../types/stream";
+import type { Tool, ToolChoice } from "../../../types/tool";
 import type {
 	AnthropicContentBlock,
 	AnthropicMessage,
 	AnthropicMessagesRequest,
 	AnthropicTextCitation,
 	AnthropicThinkingConfig as AnthropicThinkingConfigT,
-	AnthropicTool as AnthropicToolT,
 	AnthropicToolChoice as AnthropicToolChoiceT,
+	AnthropicTool as AnthropicToolT,
 } from "./types";
-import { type DocumentAnnotation, TextContent, type UrlAnnotation } from "../../../types/content";
-import { CompactionBlock, ReasoningBlock, RedactedReasoningBlock } from "../../../types/reasoning";
 import {
-	ServerToolCallBlock,
-	ServerToolResultBlock,
-	ShellCallBlock,
-	ToolCallBlock,
-} from "../../../types/tool";
-import type { StopReason, Usage } from "../../../types/metadata";
-import type { AssistantContentBlock, UserContentBlock } from "../../../types/message";
-import type { Message } from "../../../types/message";
-import type { StreamEvent } from "../../../types/stream";
-import type { ContextManagement, OutputFormat, ThinkingConfig } from "../../../types/config";
-import type { Tool, ToolChoice } from "../../../types/tool";
-import {
-	AuthenticationError,
-	BillingError,
-	ContentPolicyError,
-	ContextLengthError,
-	InputValidationError,
-	ModelNotFoundError,
-	ProviderError,
-	RateLimitError,
-	type LLMError,
-} from "../../../errors";
+	type AnthropicMessagesUsage,
+	AnthropicResponseContentBlock,
+	type AnthropicStopReason,
+	AnthropicStreamEvent,
+} from "./types";
 
 type AnthropicCitation = AnthropicTextCitation;
 type UnifiedAnnotation = UrlAnnotation | DocumentAnnotation;
 
-const WideContentBlock = Schema.Union(
-	TextContent,
-	ToolCallBlock,
-	ServerToolCallBlock,
-	ReasoningBlock,
-	RedactedReasoningBlock,
-	CompactionBlock,
-	ServerToolResultBlock,
-	ShellCallBlock,
-);
-type WideContentBlockT = typeof WideContentBlock.Type;
 type AnthropicResponseContentBlockT = typeof AnthropicResponseContentBlock.Type;
 
-export const decodeContentBlock = (block: AnthropicResponseContentBlockT): WideContentBlockT => {
+export const decodeContentBlock = (block: AnthropicResponseContentBlockT): WideContentBlock => {
 	switch (block.type) {
 		case "text":
 			return {
@@ -170,7 +152,7 @@ export const decodeContentBlock = (block: AnthropicResponseContentBlockT): WideC
 	}
 };
 
-const encodeContentBlock = (block: WideContentBlockT): AnthropicResponseContentBlockT => {
+const encodeContentBlock = (block: WideContentBlock): AnthropicResponseContentBlockT => {
 	switch (block.type) {
 		case "text":
 			return {
@@ -256,14 +238,12 @@ export const ContentBlockCodec = Schema.transform(AnthropicResponseContentBlock,
 	encode: encodeContentBlock,
 });
 
-type UsageT = typeof Usage.Type;
-
-export const decodeUsage = (a: typeof AnthropicMessagesUsage.Type): UsageT => ({
-	inputTokens: a.input_tokens,
-	outputTokens: a.output_tokens,
-	cacheReadTokens: a.cache_read_input_tokens,
-	cacheWriteTokens: a.cache_creation_input_tokens,
-	totalTokens: a.input_tokens + a.output_tokens,
+export const decodeUsage = (a: typeof AnthropicMessagesUsage.Type): TokenUsage => ({
+	input: a.input_tokens,
+	output: a.output_tokens,
+	cacheRead: a.cache_read_input_tokens,
+	cacheWrite: a.cache_creation_input_tokens,
+	total: a.input_tokens + a.output_tokens,
 });
 
 export const decodeStopReason = (
@@ -631,7 +611,7 @@ export const createStreamDecoder = () => {
 	let cacheReadTokens: number | undefined;
 	let cacheWriteTokens: number | undefined;
 	let lastStopReason: StopReason | undefined;
-	let lastUsage: UsageT | undefined;
+	let lastUsage: TokenUsage | undefined;
 	let lastError: LLMError | undefined;
 
 	return (rawEvent: unknown): StreamEvent[] => {
@@ -761,30 +741,19 @@ export const createStreamDecoder = () => {
 
 			case "message_delta": {
 				lastUsage = {
-					inputTokens,
-					outputTokens: event.usage.output_tokens,
-					cacheReadTokens: event.usage.cache_read_input_tokens ?? cacheReadTokens,
-					cacheWriteTokens: event.usage.cache_creation_input_tokens ?? cacheWriteTokens,
-					totalTokens: inputTokens + event.usage.output_tokens,
+					input: inputTokens,
+					output: event.usage.output_tokens,
+					cacheRead: event.usage.cache_read_input_tokens ?? cacheReadTokens,
+					cacheWrite: event.usage.cache_creation_input_tokens ?? cacheWriteTokens,
+					total: inputTokens + event.usage.output_tokens,
 				};
 				const result = decodeStopReason(event.delta.stop_reason);
 				if (Either.isRight(result)) {
 					lastStopReason = result.right;
-					return [
-						{
-							type: "response.delta" as const,
-							stopReason: result.right,
-							usage: lastUsage,
-						},
-					];
+				} else {
+					lastError = result.left;
 				}
-				lastError = result.left;
-				return [
-					{
-						type: "response.delta" as const,
-						usage: lastUsage,
-					},
-				];
+				return [];
 			}
 
 			case "message_stop": {

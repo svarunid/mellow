@@ -1,22 +1,24 @@
-import { Data, Effect, Stream } from "effect";
 import { LLM } from "@mellow/ai";
 import type { LLMError } from "@mellow/ai/errors";
 import type {
 	AssistantContentBlock,
 	AssistantMessage,
 	ContextManagement,
+	CostUsage,
 	ImageContent,
 	Message,
 	StopReason,
+	StreamEvent,
 	ThinkingConfig,
+	TokenUsage,
 	ToolCallBlock,
 	ToolResultBlock,
 	Usage,
 	UserMessage,
 } from "@mellow/ai/types";
-import type { StreamEvent } from "@mellow/ai/types";
-import type { Sandbox } from "@mellow/sandbox";
 import { EventStream, type EventStreamError } from "@mellow/database/stream";
+import type { Sandbox } from "@mellow/sandbox";
+import { Data, Effect, Stream } from "effect";
 import ToolRegistry from "./tool-registry";
 
 export class MaxIterationsError extends Data.TaggedError("MaxIterationsError")<{
@@ -41,7 +43,7 @@ export interface EngineInput {
 export interface EngineOutput {
 	readonly content: AssistantContentBlock[];
 	readonly stopReason: StopReason;
-	readonly usage: Usage;
+	readonly usage?: Usage | undefined;
 	readonly messages: Message[];
 }
 
@@ -49,7 +51,7 @@ interface LoopState {
 	readonly messages: Message[];
 	readonly content: AssistantContentBlock[];
 	readonly stopReason: StopReason;
-	readonly usage: Usage;
+	readonly usage?: Usage | undefined;
 	readonly iterations: number;
 }
 
@@ -59,26 +61,44 @@ interface TurnCollector {
 	readonly reasoningBuffers: Map<number, string>;
 	readonly signatureBuffers: Map<number, string>;
 	stopReason: StopReason | undefined;
-	usage: Usage | undefined;
+	usage: TokenUsage | undefined;
 }
 
 interface TurnResult {
 	readonly content: AssistantContentBlock[];
 	readonly stopReason: StopReason;
-	readonly usage: Usage;
+	readonly usage?: Usage | undefined;
 }
 
 const sum = (a?: number, b?: number): number | undefined =>
 	a === undefined && b === undefined ? undefined : (a ?? 0) + (b ?? 0);
 
-const mergeUsage = (a: Usage, b: Usage): Usage => ({
-	inputTokens: a.inputTokens + b.inputTokens,
-	outputTokens: a.outputTokens + b.outputTokens,
-	cacheReadTokens: sum(a.cacheReadTokens, b.cacheReadTokens),
-	cacheWriteTokens: sum(a.cacheWriteTokens, b.cacheWriteTokens),
-	reasoningTokens: sum(a.reasoningTokens, b.reasoningTokens),
-	totalTokens: sum(a.totalTokens, b.totalTokens),
+const mergeToken = (a: TokenUsage, b: TokenUsage): TokenUsage => ({
+	input: a.input + b.input,
+	output: a.output + b.output,
+	cacheRead: sum(a.cacheRead, b.cacheRead),
+	cacheWrite: sum(a.cacheWrite, b.cacheWrite),
+	reasoning: sum(a.reasoning, b.reasoning),
+	total: sum(a.total, b.total),
 });
+
+const mergeCost = (a: CostUsage, b: CostUsage): CostUsage => ({
+	input: a.input + b.input,
+	output: a.output + b.output,
+	reasoning: sum(a.reasoning, b.reasoning),
+	cacheRead: sum(a.cacheRead, b.cacheRead),
+	cacheWrite: sum(a.cacheWrite, b.cacheWrite),
+});
+
+const mergeUsage = (a?: Usage, b?: Usage): Usage | undefined => {
+	if (!a && !b) return undefined;
+	if (!a) return b;
+	if (!b) return a;
+	return {
+		token: mergeToken(a.token, b.token),
+		cost: a.cost && b.cost ? mergeCost(a.cost, b.cost) : (a.cost ?? b.cost),
+	};
+};
 
 const extractToolCalls = (content: AssistantContentBlock[]): ToolCallBlock[] =>
 	content.filter((b): b is ToolCallBlock => b.type === "tool_call");
@@ -192,7 +212,7 @@ export default class Engine extends Effect.Service<Engine>()("@mellow/agent/Engi
 						.sort(([a], [b]) => a - b)
 						.map(([, block]) => block),
 					stopReason: collector.stopReason ?? "end_turn",
-					usage: collector.usage ?? { inputTokens: 0, outputTokens: 0 },
+					usage: collector.usage ? { token: collector.usage } : undefined,
 				};
 			});
 

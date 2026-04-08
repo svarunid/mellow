@@ -1,31 +1,46 @@
-import { Config, Effect, Either, JSONSchema, Layer, Redacted, Schema, Stream } from "effect";
 import {
 	FetchHttpClient,
 	HttpClient,
 	HttpClientRequest,
 	HttpClientResponse,
 } from "@effect/platform";
+import { Config, Effect, Either, JSONSchema, Layer, Redacted, Schema, Stream } from "effect";
+import { InputValidationError, type LLMError, ProviderError } from "../../../errors";
+import type { AssistantContentBlock } from "../../../types/message";
+import type { CostUsage, TokenUsage, Usage } from "../../../types/metadata";
+import type { StreamEvent } from "../../../types/stream";
+import { rate } from "../../../utils/cost";
+import { parseSSE } from "../../../utils/sse";
+import { type Cost, ModelStore } from "../../models";
 import {
-	LLM,
-	type GenerateTextParams,
-	type GenerateTextResult,
 	type GenerateObjectParams,
 	type GenerateObjectResult,
+	type GenerateTextParams,
+	type GenerateTextResult,
+	LLM,
 	type StreamParams,
 } from "../service";
 import {
-	decodeContentBlock,
-	decodeUsage,
-	decodeStopReason,
-	decodeError,
-	encodeRequest,
 	createStreamDecoder,
+	decodeContentBlock,
+	decodeError,
+	decodeStopReason,
+	decodeUsage,
+	encodeRequest,
 } from "./codec";
 import { AnthropicMessagesResponse } from "./types";
-import { parseSSE } from "../../../utils/sse";
-import { InputValidationError, ProviderError, type LLMError } from "../../../errors";
-import type { AssistantContentBlock } from "../../../types/message";
-import type { StreamEvent } from "../../../types/stream";
+
+const computeCost = (token: TokenUsage, cost: Cost): CostUsage => ({
+	input: rate(token.input, cost.input),
+	output: rate(token.output, cost.output),
+	reasoning:
+		token.reasoning !== undefined
+			? rate(token.reasoning, cost.reasoning ?? cost.output)
+			: undefined,
+	cacheRead: token.cacheRead !== undefined ? rate(token.cacheRead, cost.cacheRead ?? 0) : undefined,
+	cacheWrite:
+		token.cacheWrite !== undefined ? rate(token.cacheWrite, cost.cacheWrite ?? 0) : undefined,
+});
 
 const ASSISTANT_BLOCK_TYPES = new Set([
 	"text",
@@ -47,6 +62,7 @@ export namespace Anthropic {
 			LLM,
 			Effect.gen(function* () {
 				const httpClient = yield* HttpClient.HttpClient;
+				const modelStore = yield* ModelStore;
 
 				const envApiKey = yield* Config.redacted("ANTHROPIC_API_KEY").pipe(
 					Config.map((r) => Redacted.value(r)),
@@ -127,7 +143,12 @@ export namespace Anthropic {
 							.map(decodeContentBlock)
 							.filter((b): b is AssistantContentBlock => ASSISTANT_BLOCK_TYPES.has(b.type));
 
-						const usage = decodeUsage(parsed.usage);
+						const token = decodeUsage(parsed.usage);
+						const model = yield* modelStore.get("anthropic", params.model);
+						const usage: Usage = {
+							token,
+							cost: model?.cost ? computeCost(token, model.cost) : undefined,
+						};
 
 						const stopResult = decodeStopReason(parsed.stop_reason);
 						if (Either.isLeft(stopResult)) {
@@ -161,7 +182,12 @@ export namespace Anthropic {
 								}),
 						});
 
-						const usage = decodeUsage(parsed.usage);
+						const token = decodeUsage(parsed.usage);
+						const model = yield* modelStore.get("anthropic", params.model);
+						const usage: Usage = {
+							token,
+							cost: model?.cost ? computeCost(token, model.cost) : undefined,
+						};
 
 						const textBlock = parsed.content.find((b) => b.type === "text");
 						if (!textBlock || textBlock.type !== "text") {
@@ -230,5 +256,5 @@ export namespace Anthropic {
 
 				return { generateText, generateObject, stream };
 			}),
-		).pipe(Layer.provide(FetchHttpClient.layer));
+		).pipe(Layer.provide(FetchHttpClient.layer), Layer.provide(ModelStore.Default));
 }

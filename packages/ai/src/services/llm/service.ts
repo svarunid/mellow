@@ -1,11 +1,10 @@
 import { Context, type Effect, type Schema, type Stream } from "effect";
-import type { AssistantContentBlock } from "../../types/message";
-import type { Message } from "../../types/message";
+import type { LLMError } from "../../errors";
+import type { ContextManagement, ThinkingConfig } from "../../types/config";
+import type { AssistantContentBlock, Message } from "../../types/message";
 import type { StopReason, Usage } from "../../types/metadata";
 import type { StreamEvent } from "../../types/stream";
-import type { ContextManagement, ThinkingConfig } from "../../types/config";
 import type { Tool, ToolChoice } from "../../types/tool";
-import type { LLMError } from "../../errors";
 
 export interface BaseParams {
 	readonly model: string;
@@ -26,7 +25,7 @@ export interface GenerateTextParams extends BaseParams {}
 export interface GenerateTextResult {
 	readonly content: AssistantContentBlock[];
 	readonly stopReason: StopReason;
-	readonly usage: Usage;
+	readonly usage?: Usage | undefined;
 }
 
 export interface GenerateObjectParams<T> extends BaseParams {
@@ -37,7 +36,7 @@ export interface GenerateObjectParams<T> extends BaseParams {
 
 export interface GenerateObjectResult<T> {
 	readonly object: T;
-	readonly usage: Usage;
+	readonly usage?: Usage | undefined;
 }
 
 export interface StreamParams extends BaseParams {}

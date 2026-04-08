@@ -8,6 +8,7 @@
     "./anthropic": "./src/services/llm/anthropic/layer.ts",
     "./openai": "./src/services/llm/openai/layer.ts",
     "./google": "./src/services/llm/google/layer.ts",
+    "./models": "./src/services/models.ts",
     "./errors": "./src/errors.ts",
     "./types": "./src/types/index.ts"
   },

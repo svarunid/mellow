@@ -1,31 +1,50 @@
-import { Config, Effect, Either, JSONSchema, Layer, Redacted, Schema, Stream } from "effect";
 import {
 	FetchHttpClient,
 	HttpClient,
 	HttpClientRequest,
 	HttpClientResponse,
 } from "@effect/platform";
+import { Config, Effect, Either, JSONSchema, Layer, Redacted, Schema, Stream } from "effect";
+import { InputValidationError, type LLMError, ProviderError } from "../../../errors";
+import type { AssistantContentBlock } from "../../../types/message";
+import type { CostUsage, TokenUsage, Usage } from "../../../types/metadata";
+import type { StreamEvent } from "../../../types/stream";
+import { rate } from "../../../utils/cost";
+import { parseSSE } from "../../../utils/sse";
+import { type Cost, ModelStore } from "../../models";
 import {
-	LLM,
-	type GenerateTextParams,
-	type GenerateTextResult,
 	type GenerateObjectParams,
 	type GenerateObjectResult,
+	type GenerateTextParams,
+	type GenerateTextResult,
+	LLM,
 	type StreamParams,
 } from "../service";
 import {
-	decodeOutputItem,
-	decodeUsage,
-	decodeStopReason,
-	decodeError,
-	encodeRequest,
 	createStreamDecoder,
+	decodeError,
+	decodeOutputItem,
+	decodeStopReason,
+	decodeUsage,
+	encodeRequest,
 } from "./codec";
 import { OpenAIResponsesResponse, type OpenAIResponsesUsage } from "./types";
-import { parseSSE } from "../../../utils/sse";
-import { InputValidationError, ProviderError, type LLMError } from "../../../errors";
-import type { AssistantContentBlock } from "../../../types/message";
-import type { StreamEvent } from "../../../types/stream";
+
+const computeCost = (token: TokenUsage, cost: Cost): CostUsage => {
+	const nonCachedInput = Math.max(0, token.input - (token.cacheRead ?? 0));
+	return {
+		input: rate(nonCachedInput, cost.input),
+		output: rate(token.output, cost.output),
+		reasoning:
+			token.reasoning !== undefined
+				? rate(token.reasoning, cost.reasoning ?? cost.output)
+				: undefined,
+		cacheRead:
+			token.cacheRead !== undefined ? rate(token.cacheRead, cost.cacheRead ?? 0) : undefined,
+		cacheWrite:
+			token.cacheWrite !== undefined ? rate(token.cacheWrite, cost.cacheWrite ?? 0) : undefined,
+	};
+};
 
 const ASSISTANT_BLOCK_TYPES = new Set([
 	"text",
@@ -47,6 +66,7 @@ export namespace OpenAI {
 			LLM,
 			Effect.gen(function* () {
 				const httpClient = yield* HttpClient.HttpClient;
+				const modelStore = yield* ModelStore;
 
 				const envApiKey = yield* Config.redacted("OPENAI_API_KEY").pipe(
 					Config.map((r) => Redacted.value(r)),
@@ -124,9 +144,13 @@ export namespace OpenAI {
 							.flatMap(decodeOutputItem)
 							.filter((b): b is AssistantContentBlock => ASSISTANT_BLOCK_TYPES.has(b.type));
 
-						const usage = parsed.usage
+						const token = parsed.usage
 							? decodeUsage(parsed.usage as typeof OpenAIResponsesUsage.Type)
-							: { inputTokens: 0, outputTokens: 0 };
+							: undefined;
+						const model = yield* modelStore.get("openai", params.model);
+						const usage: Usage | undefined = token
+							? { token, cost: model?.cost ? computeCost(token, model.cost) : undefined }
+							: undefined;
 
 						const stopResult = decodeStopReason(parsed);
 						if (Either.isLeft(stopResult)) {
@@ -160,9 +184,13 @@ export namespace OpenAI {
 								}),
 						});
 
-						const usage = parsed.usage
+						const token = parsed.usage
 							? decodeUsage(parsed.usage as typeof OpenAIResponsesUsage.Type)
-							: { inputTokens: 0, outputTokens: 0 };
+							: undefined;
+						const model = yield* modelStore.get("openai", params.model);
+						const usage: Usage | undefined = token
+							? { token, cost: model?.cost ? computeCost(token, model.cost) : undefined }
+							: undefined;
 
 						const textBlock = parsed.output
 							.flatMap(decodeOutputItem)
@@ -233,5 +261,5 @@ export namespace OpenAI {
 
 				return { generateText, generateObject, stream };
 			}),
-		).pipe(Layer.provide(FetchHttpClient.layer));
+		).pipe(Layer.provide(FetchHttpClient.layer), Layer.provide(ModelStore.Default));
 }

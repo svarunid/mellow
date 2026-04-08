@@ -1,7 +1,7 @@
 import { Schema } from "effect";
 import { Delta, ErrorDelta } from "./delta";
 import { AssistantContentBlock } from "./message";
-import { StopReason, Usage } from "./metadata";
+import { StopReason, TokenUsage } from "./metadata";
 
 export const StreamStart = Schema.Struct({
 	type: Schema.Literal("response.start"),
@@ -28,17 +28,10 @@ export const StreamContentStop = Schema.Struct({
 });
 export type StreamContentStop = typeof StreamContentStop.Type;
 
-export const StreamResponseDelta = Schema.Struct({
-	type: Schema.Literal("response.delta"),
-	stopReason: Schema.optional(StopReason),
-	usage: Schema.optional(Usage),
-});
-export type StreamResponseDelta = typeof StreamResponseDelta.Type;
-
 export const StreamComplete = Schema.Struct({
 	type: Schema.Literal("response.complete"),
 	stopReason: Schema.optional(StopReason),
-	usage: Schema.optional(Usage),
+	usage: Schema.optional(TokenUsage),
 });
 export type StreamComplete = typeof StreamComplete.Type;
 
@@ -53,7 +46,6 @@ export const StreamEvent = Schema.Union(
 	StreamContentStart,
 	StreamContentDelta,
 	StreamContentStop,
-	StreamResponseDelta,
 	StreamComplete,
 	StreamError,
 );

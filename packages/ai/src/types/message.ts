@@ -33,6 +33,18 @@ export const AssistantContentBlock = Schema.Union(
 );
 export type AssistantContentBlock = typeof AssistantContentBlock.Type;
 
+export const WideContentBlock = Schema.Union(
+	TextContent,
+	ToolCallBlock,
+	ServerToolCallBlock,
+	ReasoningBlock,
+	RedactedReasoningBlock,
+	CompactionBlock,
+	ServerToolResultBlock,
+	ShellCallBlock,
+);
+export type WideContentBlock = typeof WideContentBlock.Type;
+
 export const SystemMessage = Schema.Struct({
 	role: Schema.Literal("system"),
 	content: Schema.String,
