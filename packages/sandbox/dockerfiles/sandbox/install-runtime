@@ -1,0 +1,226 @@
+#!/bin/bash
+set -euo pipefail
+
+# ─── On-demand runtime installer for Mellow sandboxes ────────────────────────
+# Installs language runtimes that aren't in the base image.
+# Each runtime writes its env vars to /etc/profile.d/ for future shells
+# and exports them immediately for the current session.
+
+ENVDIR="/etc/profile.d"
+
+write_env() {
+    local name="$1"
+    shift
+    local envfile="${ENVDIR}/mellow-${name}.sh"
+    sudo tee "$envfile" > /dev/null <<< "$(printf '%s\n' "$@")"
+    for line in "$@"; do eval "$line"; done
+}
+
+# ─── Java 21 + Maven + Gradle + Kotlin ───────────────────────────────────────
+
+install_java() {
+    local GRADLE_VERSION="${GRADLE_VERSION:-8.12}"
+    local KOTLIN_VERSION="${KOTLIN_VERSION:-2.1.0}"
+
+    sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+        openjdk-21-jdk maven \
+        && sudo rm -rf /var/lib/apt/lists/*
+
+    local ARCH
+    ARCH=$(dpkg --print-architecture)
+    sudo ln -sf "/usr/lib/jvm/java-21-openjdk-${ARCH}" /usr/lib/jvm/java-21-openjdk
+
+    # Gradle
+    curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+        -o /tmp/gradle.zip
+    sudo unzip -qo /tmp/gradle.zip -d /usr/local
+    rm /tmp/gradle.zip
+    sudo ln -sf "/usr/local/gradle-${GRADLE_VERSION}/bin/gradle" /usr/local/bin/gradle
+
+    # Kotlin compiler
+    curl -fsSL "https://github.com/JetBrains/kotlin/releases/download/v${KOTLIN_VERSION}/kotlin-compiler-${KOTLIN_VERSION}.zip" \
+        -o /tmp/kotlin.zip
+    sudo unzip -qo /tmp/kotlin.zip -d /usr/local
+    rm /tmp/kotlin.zip
+
+    write_env "java" \
+        'export JAVA_HOME=/usr/lib/jvm/java-21-openjdk' \
+        'export PATH="$JAVA_HOME/bin:/usr/local/kotlinc/bin:$PATH"'
+
+    echo "Installed: OpenJDK 21, Maven, Gradle ${GRADLE_VERSION}, Kotlin ${KOTLIN_VERSION}"
+}
+
+# ─── Ruby ─────────────────────────────────────────────────────────────────────
+
+install_ruby() {
+    local RUBY_VERSION="${RUBY_VERSION:-3.4.1}"
+
+    sudo git clone --depth 1 https://github.com/rbenv/rbenv.git /usr/local/rbenv
+    sudo git clone --depth 1 https://github.com/rbenv/ruby-build.git /usr/local/rbenv/plugins/ruby-build
+
+    export RBENV_ROOT=/usr/local/rbenv
+    export PATH="$RBENV_ROOT/bin:$RBENV_ROOT/shims:$PATH"
+
+    sudo env RBENV_ROOT="$RBENV_ROOT" PATH="$PATH" rbenv install "$RUBY_VERSION"
+    sudo env RBENV_ROOT="$RBENV_ROOT" PATH="$PATH" rbenv global "$RUBY_VERSION"
+    sudo env RBENV_ROOT="$RBENV_ROOT" PATH="$PATH" rbenv rehash
+
+    gem install --no-document bundler
+
+    write_env "ruby" \
+        'export RBENV_ROOT=/usr/local/rbenv' \
+        'export PATH="$RBENV_ROOT/bin:$RBENV_ROOT/shims:$PATH"'
+
+    echo "Installed: Ruby ${RUBY_VERSION} via rbenv"
+}
+
+# ─── PHP + Composer ───────────────────────────────────────────────────────────
+
+install_php() {
+    sudo add-apt-repository -y ppa:ondrej/php
+    sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+        php8.3 php8.3-cli php8.3-mbstring php8.3-xml \
+        php8.3-curl php8.3-zip php8.3-intl php8.3-sqlite3 \
+        && sudo rm -rf /var/lib/apt/lists/*
+
+    curl -fsSL https://getcomposer.org/installer \
+        | sudo php -- --install-dir=/usr/local/bin --filename=composer
+
+    echo "Installed: PHP 8.3, Composer"
+}
+
+# ─── .NET / C# ───────────────────────────────────────────────────────────────
+
+install_dotnet() {
+    curl -fsSL https://packages.microsoft.com/config/ubuntu/24.04/packages-microsoft-prod.deb \
+        -o /tmp/packages-microsoft-prod.deb
+    sudo dpkg -i /tmp/packages-microsoft-prod.deb
+    rm /tmp/packages-microsoft-prod.deb
+    sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+        dotnet-sdk-9.0 \
+        && sudo rm -rf /var/lib/apt/lists/*
+
+    echo "Installed: .NET SDK 9.0"
+}
+
+# ─── Swift ────────────────────────────────────────────────────────────────────
+
+install_swift() {
+    local SWIFT_VERSION="${SWIFT_VERSION:-6.0.3}"
+    local ARCH
+    ARCH=$(uname -m)
+    local SWIFT_PLATFORM SWIFT_SUFFIX
+
+    if [ "$ARCH" = "aarch64" ]; then
+        SWIFT_PLATFORM="ubuntu2404-aarch64"
+        SWIFT_SUFFIX="-ubuntu24.04-aarch64"
+    else
+        SWIFT_PLATFORM="ubuntu2404"
+        SWIFT_SUFFIX="-ubuntu24.04"
+    fi
+
+    local FILENAME="swift-${SWIFT_VERSION}-RELEASE${SWIFT_SUFFIX}"
+    curl -fsSL "https://download.swift.org/swift-${SWIFT_VERSION}-release/${SWIFT_PLATFORM}/${FILENAME}/${FILENAME}.tar.gz" \
+        -o /tmp/swift.tar.gz
+    sudo tar -C /usr/local -xz --strip-components=1 -f /tmp/swift.tar.gz
+    rm /tmp/swift.tar.gz
+
+    echo "Installed: Swift ${SWIFT_VERSION}"
+}
+
+# ─── Dart ─────────────────────────────────────────────────────────────────────
+
+install_dart() {
+    local ARCH
+    ARCH=$(dpkg --print-architecture)
+    curl -fsSL https://dl-ssl.google.com/linux/linux_signing_key.pub \
+        | sudo gpg --dearmor -o /usr/share/keyrings/dart.gpg
+    echo "deb [signed-by=/usr/share/keyrings/dart.gpg arch=${ARCH}] https://storage.googleapis.com/download.dartlang.org/linux/debian stable main" \
+        | sudo tee /etc/apt/sources.list.d/dart_stable.list
+    sudo apt-get update && sudo apt-get install -y --no-install-recommends dart \
+        && sudo rm -rf /var/lib/apt/lists/*
+
+    write_env "dart" \
+        'export PATH="/usr/lib/dart/bin:$HOME/.pub-cache/bin:$PATH"'
+
+    echo "Installed: Dart SDK"
+}
+
+# ─── Lua ──────────────────────────────────────────────────────────────────────
+
+install_lua() {
+    sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+        lua5.4 luarocks \
+        && sudo rm -rf /var/lib/apt/lists/*
+
+    echo "Installed: Lua 5.4, LuaRocks"
+}
+
+# ─── Deno ─────────────────────────────────────────────────────────────────────
+
+install_deno() {
+    curl -fsSL https://deno.land/install.sh | sh
+
+    write_env "deno" \
+        'export DENO_INSTALL="$HOME/.deno"' \
+        'export PATH="$DENO_INSTALL/bin:$PATH"'
+
+    echo "Installed: Deno"
+}
+
+# ─── Chromium (Google Chrome Stable via apt) ─────────────────────────────────
+
+install_chromium() {
+    curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
+        | sudo gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg
+    echo "deb [signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" \
+        | sudo tee /etc/apt/sources.list.d/google-chrome.list
+    sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+        google-chrome-stable \
+        && sudo rm -rf /var/lib/apt/lists/*
+
+    echo "Installed: Google Chrome Stable"
+    echo "  Binary: /usr/bin/google-chrome-stable"
+    echo "  Launch: google-chrome-stable --headless=new --no-sandbox --remote-debugging-port=9222"
+}
+
+# ─── Main ─────────────────────────────────────────────────────────────────────
+
+usage() {
+    cat <<EOF
+Usage: install-runtime <runtime> [runtime...]
+
+Available runtimes:
+  java        OpenJDK 21 + Maven + Gradle + Kotlin
+  ruby        rbenv + Ruby 3.4.1 + Bundler
+  php         PHP 8.3 + Composer
+  dotnet      .NET SDK 9.0
+  swift       Swift 6.0.3
+  dart        Dart SDK
+  lua         Lua 5.4 + LuaRocks
+  deno        Deno runtime
+  chromium    Google Chrome Stable (CDP-compatible)
+
+Version overrides via env vars:
+  RUBY_VERSION=3.3.0 install-runtime ruby
+  SWIFT_VERSION=5.10 KOTLIN_VERSION=2.0.0 install-runtime java swift
+EOF
+    exit 1
+}
+
+[ $# -eq 0 ] && usage
+
+for runtime in "$@"; do
+    case "$runtime" in
+        java)       install_java ;;
+        ruby)       install_ruby ;;
+        php)        install_php ;;
+        dotnet)     install_dotnet ;;
+        swift)      install_swift ;;
+        dart)       install_dart ;;
+        lua)        install_lua ;;
+        deno)       install_deno ;;
+        chromium)   install_chromium ;;
+        *)          echo "Unknown runtime: $runtime"; usage ;;
+    esac
+done

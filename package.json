@@ -1,0 +1,26 @@
+{
+  "name": "mellow",
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.6",
+    "lefthook": "^2.1.3",
+    "turbo": "^2.8.14"
+  },
+  "packageManager": "bun@1.3.10",
+  "private": true,
+  "scripts": {
+    "prepare": "lefthook install",
+    "lint": "biome check .",
+    "lint:fix": "biome check . --write",
+    "dev": "turbo dev --parallel",
+    "build": "turbo build",
+    "check-types": "turbo check-types",
+    "test": "turbo test",
+    "db:generate": "turbo db:generate",
+    "db:migrate": "turbo db:migrate",
+    "db:studio": "turbo db:studio"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}

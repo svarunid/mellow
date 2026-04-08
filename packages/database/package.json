@@ -1,0 +1,29 @@
+{
+  "name": "@mellow/database",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./schema": "./src/schema/index.ts",
+    "./client": "./src/client.ts",
+    "./redis": "./src/redis.ts",
+    "./stream": "./src/stream.ts"
+  },
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.1",
+    "effect": "^3.19.19",
+    "ioredis": "5.9.3",
+    "postgres": "^3.4.8"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.9",
+    "@types/bun": "^1.3.9",
+    "typescript": "^5.9.3"
+  }
+}

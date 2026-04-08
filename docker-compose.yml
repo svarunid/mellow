@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres:18
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: mellow
+      POSTGRES_PASSWORD: mellow
+      POSTGRES_DB: mellow
+    volumes:
+      - pgdata:/var/lib/postgresql
+
+  redis:
+    image: redis:8.6
+    ports:
+      - "6380:6379"
+    volumes:
+      - redisdata:/data
+
+  opensandbox:
+    image: opensandbox/server:v0.1.5
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./sandbox.toml:/root/.sandbox.toml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      SANDBOX_CONFIG_PATH: /root/.sandbox.toml
+    networks:
+      - default
+    restart: unless-stopped
+
+  # Optional: auth gateway (git-ignored, not part of open-source distribution)
+  # auth:
+  #   build: ./apps/auth
+  #   ports:
+  #     - "3001:3001"
+  #   depends_on:
+  #     - postgres
+  #   env_file: .env
+
+networks:
+  default:
+    name: mellow
+
+volumes:
+  pgdata:
+  redisdata:

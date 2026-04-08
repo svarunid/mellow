@@ -1,0 +1,23 @@
+{
+  "name": "@mellow/agent",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --env-file=.env --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "start": "bun dist/index.js",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mellow/ai": "workspace:*",
+    "@mellow/database": "workspace:*",
+    "@mellow/sandbox": "workspace:*",
+    "drizzle-orm": "^0.45.1",
+    "effect": "^3.19.19"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.9",
+    "typescript": "^5.9.3"
+  }
+}

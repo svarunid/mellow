@@ -1,0 +1,14 @@
+pre-commit:
+  parallel: false
+  jobs:
+    - name: format
+      glob: "*.{ts,tsx,js,jsx,json}"
+      run: bunx biome check --write {staged_files}
+      stage_fixed: true
+    - name: check-types
+      run: bun run check-types
+
+pre-push:
+  jobs:
+    - name: test
+      run: bun run test

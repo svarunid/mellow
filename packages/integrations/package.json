@@ -1,0 +1,20 @@
+{
+  "name": "@mellow/integrations",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./linear": "./src/linear/index.ts",
+    "./plane": "./src/plane/index.ts",
+    "./jira": "./src/jira/index.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.9",
+    "@types/node": "^25.3.5",
+    "typescript": "^5.9.3"
+  }
+}

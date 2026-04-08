@@ -1,0 +1,26 @@
+{
+  "name": "@mellow/sandbox",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/sandbox.ts",
+    "./server": "./src/server.ts",
+    "./execd": "./src/execd.ts",
+    "./analyze": "./src/analyze.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@effect/platform": "^0.95.0",
+    "@effect/platform-bun": "^0.88.0",
+    "@mellow/database": "workspace:*",
+    "drizzle-orm": "^0.45.1",
+    "effect": "^3.19.19"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.9",
+    "typescript": "^5.9.3"
+  }
+}
